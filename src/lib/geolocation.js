@@ -57,12 +57,14 @@ export function filterRestaurantsWithinRadius(restaurants, center, maxDistanceMe
 		return [];
 	}
 
-	return restaurants.filter((restaurant) => {
+	const matches = [];
+
+	for (const restaurant of restaurants) {
 		const latitude = Number(restaurant.latitude ?? restaurant.lat);
 		const longitude = Number(restaurant.longitude ?? restaurant.lng ?? restaurant.lon);
 
 		if (![latitude, longitude].every(Number.isFinite)) {
-			return false;
+			continue;
 		}
 
 		const distance = haversineDistanceMeters(
@@ -70,6 +72,11 @@ export function filterRestaurantsWithinRadius(restaurants, center, maxDistanceMe
 			{ lat: latitude, lon: longitude }
 		);
 
-		return distance <= maxDistanceMeters;
-	});
+		if (distance <= maxDistanceMeters) {
+			matches.push({ restaurant, distance });
+		}
+	}
+
+	matches.sort((a, b) => a.distance - b.distance);
+	return matches.map((entry) => entry.restaurant);
 }

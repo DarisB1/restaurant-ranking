@@ -12,17 +12,14 @@
 	let { data } = $props();
 	// console.log(data);
 
-	let addressInput = $state('Redchurch St, Shoreditch, London');
+	let addressInput = $state('');
 	let radiusMeters = 500;
-	/** @type {{ lat: number, lon: number, displayName: string } | null} */
 	let selectedLocation = $state(null);
-	/** @type {'ranked' | 'want_to_try'} */
 	let activeTab = $state('ranked');
-	/** @type {'all' | string} */
-	let selectedTag = $state('Open Fire');
+	let selectedTag = $state('All');
+	let hasUserInteracted = $state(false);
 
 	// Toutes les données restaurants envoyées par le serveur.
-	/** @type {Array<{ list_status?: string, rank?: number, name?: string, tagline?: string, neighborhood?: string, price_tier?: number, all_tags?: string }>} */
 	let allRestaurants = $derived(data.all ?? []);
 
 	// Liste des restaurants classés.
@@ -51,13 +48,10 @@
 
 	// console.log(tagButtons);
 
-	// Les restaurants sont séparés par onglet : Ranked ou Want to try.
-	// Le tag sélectionné sert seulement à indiquer quel bouton est actif dans l'UI.
 	let wantToTryRestaurants = $derived(
 		allRestaurants.filter(
-			/** @param {{ list_status?: string }} restaurant */
 			(restaurant) =>
-				restaurant.list_status === 'want_to_try' || restaurant.list_status === 'want_to_ty'
+				restaurant.list_status === 'want_to_try'
 		)
 	);
 	let visibleRestaurants = $derived(
@@ -65,10 +59,17 @@
 	);
 
 	// console.log(visibleRestaurants);
+
+	let filteredVisibleRestaurants = $derived(
+		selectedLocation
+			? filterRestaurantsWithinRadius(visibleRestaurants, selectedLocation, radiusMeters)
+			: visibleRestaurants
+	);
+
 	let restaurantTags = $derived(
 		selectedTag == 'All'
-			? visibleRestaurants
-			: visibleRestaurants.filter((restau) =>
+			? filteredVisibleRestaurants
+			: filteredVisibleRestaurants.filter((restau) =>
 					(restau.all_tags ?? '')
 						.split(',')
 						.map((t) => t.trim())
@@ -81,15 +82,22 @@
 			return filterRestaurantsWithinRadius(restaurantTags, selectedLocation, radiusMeters);
 		}
 
+		if (!hasUserInteracted) {
+			return [];
+		}
+
+		const filteredByTab =
+			activeTab === 'ranked' ? rankedRestaurants : wantToTryRestaurants;
+
 		const baseRestaurants =
 			selectedTag === 'All'
-				? rankedRestaurants
-				: rankedRestaurants.filter((restaurant) =>
+				? filteredByTab
+				: filteredByTab.filter((restaurant) =>
 						(restaurant.all_tags ?? '')
 							.split(',')
 							.map((tag) => tag.trim())
 							.includes(selectedTag)
-				  );
+			  );
 
 		return baseRestaurants.slice(0, 9);
 	}
@@ -105,23 +113,31 @@
 	/** @param {'ranked' | 'want_to_try'} tab */
 	function setRestaurantTab(tab) {
 		activeTab = tab;
+		hasUserInteracted = true;
 		refreshMapRestaurants();
 	}
 
 	/** @param {'all' | string} tag */
 	function setActiveTag(tag) {
 		selectedTag = tag;
+		hasUserInteracted = true;
 		refreshMapRestaurants();
+	}
+
+	function resetToDefault() {
+		addressInput = '';
+		selectedLocation = null;
+		activeTab = 'ranked';
+		selectedTag = 'All';
+		hasUserInteracted = false;
+		emitMapEvent('map:location', null);
+		emitMapEvent('map:restaurants', []);
 	}
 
 	function asideClose() {
 		asideOpen = false;
 	}
 
-	/**
-	 * @param {string} eventName
-	 * @param {unknown} detail
-	 */
 	function emitMapEvent(eventName, detail) {
 		if (typeof window !== 'undefined') {
 			window.dispatchEvent(new CustomEvent(eventName, { detail }));
@@ -136,6 +152,8 @@
 		if (!query) {
 			return;
 		}
+
+		hasUserInteracted = true;
 
 		try {
 			const response = await fetch(
@@ -241,7 +259,9 @@
 	</label>
 	<div class="divRadius">
 		<p>{radiusMeters}m radius</p>
-		<button type="submit" aria-label="Search the address"><img src={Reload} alt="reload" /></button>
+		<button type="button" aria-label="Reset to default" onclick={resetToDefault}>
+			<img src={Reload} alt="reload" />
+		</button>
 	</div>
 </form>
 

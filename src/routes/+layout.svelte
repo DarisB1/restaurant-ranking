@@ -47,9 +47,20 @@
 			const syncSelectedLocation = (/** @type {Event} */ event) => {
 				if (!map) return;
 
-				const customEvent = /** @type {CustomEvent<{ lat: number, lon: number }>} */ (event);
+				const customEvent = /** @type {CustomEvent<{ lat: number, lon: number } | null>} */ (event);
 				const location = customEvent.detail;
-				if (!location) return;
+				if (!location) {
+					if (selectedLocationMarker) {
+						selectedLocationMarker.remove();
+						selectedLocationMarker = null;
+					}
+					if (searchRadiusCircle) {
+						searchRadiusCircle.remove();
+						searchRadiusCircle = null;
+					}
+					map.setView([51.505, -0.09], 13);
+					return;
+				}
 
 				const point = [Number(location.lat), Number(location.lon)];
 
@@ -91,25 +102,33 @@
 				restaurantMarkers = [];
 
 				const customEvent =
-					/** @type {CustomEvent<Array<{ latitude: number, longitude: number, rank?: number }>>} */ (
+					/** @type {CustomEvent<Array<{ latitude: number, longitude: number, rank?: number, name?: string, tagline?: string, neighborhood?: string }>>} */ (
 						event
 					);
 				const restaurants = customEvent.detail ?? [];
-				restaurantMarkers = restaurants.map(
-					/** @param {{ latitude: number, longitude: number, rank?: number }} restaurant */
-					(restaurant, index) => {
-						const rank = restaurant.rank ?? 1;
-						const offsetLat = index * 0.0012;
-						return L.marker([restaurant.latitude + offsetLat, restaurant.longitude], {
-							icon: L.divIcon({
-								className: 'restaurant-pin',
-								html: `<span>${rank}</span>`,
-								iconSize: [30, 30],
-								iconAnchor: [15, 30]
-							})
-						}).addTo(map);
-					}
-				);
+				restaurantMarkers = restaurants.map((restaurant, index) => {
+					const rank = restaurant.rank ?? 1;
+					const offsetLat = index * 0.0012;
+					const marker = L.marker([restaurant.latitude + offsetLat, restaurant.longitude], {
+						icon: L.divIcon({
+							className: 'restaurant-pin',
+							html: `<span>${rank}</span>`,
+							iconSize: [30, 30],
+							iconAnchor: [15, 30]
+						})
+					}).addTo(map);
+
+					const popupContent = [
+						`<strong>${restaurant.name ?? 'Restaurant'}</strong>`,
+						restaurant.tagline ? `<div>${restaurant.tagline}</div>` : '',
+						restaurant.neighborhood ? `<div>${restaurant.neighborhood}</div>` : ''
+					]
+						.filter(Boolean)
+						.join('');
+
+					marker.bindPopup(popupContent);
+					return marker;
+				});
 			};
 
 			window.addEventListener('map:location', syncSelectedLocation);

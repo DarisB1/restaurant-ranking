@@ -16,3 +16,18 @@ test('filters restaurants within 500m of a search location', () => {
 		['Near', 'Close']
 	);
 });
+
+test('sorts restaurants in the radius from nearest to farthest', () => {
+	const center = { lat: 51.504, lon: -0.1 };
+	const restaurants = [
+		{ name: 'Far', latitude: 51.513, longitude: -0.12 },
+		{ name: 'Near', latitude: 51.5043, longitude: -0.1002 },
+		{ name: 'Middle', latitude: 51.508, longitude: -0.11 }
+	];
+
+	const filtered = filterRestaurantsWithinRadius(restaurants, center, 2000);
+	assert.deepEqual(
+		filtered.map((restaurant) => restaurant.name),
+		['Near', 'Middle', 'Far']
+	);
+});
